@@ -16,6 +16,7 @@ export interface ApplicationData {
 export interface ApplicationWizardSession extends Scenes.WizardSessionData {
     applicationState: ApplicationData;
     isEditing?: boolean;
+    history: number[];
 
 }
 
