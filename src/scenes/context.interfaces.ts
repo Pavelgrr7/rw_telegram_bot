@@ -17,6 +17,8 @@ export interface ApplicationWizardSession extends Scenes.WizardSessionData {
     applicationState: ApplicationData;
     isEditing?: boolean;
     history: number[];
+    toDeleteMsgId?: number;
+    // lastUserMessageId?: number;
 
 }
 

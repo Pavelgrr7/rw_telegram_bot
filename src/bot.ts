@@ -17,6 +17,17 @@ const stage = new Scenes.Stage<RwBotContext>([applicationScene], {
 });
 bot.use(stage.middleware());
 
+bot.start(async (ctx) => {
+    await ctx.reply(
+        `Вас приветствует бот ${process.env.BOT_NAME}. Оставьте заявку на проектирование или консультацию, и мы свяжемся с вами в ближайшее время.`,
+        // Кнопка под сообщением
+        Markup.inlineKeyboard([
+            // Кнопка с callback-запросом
+            Markup.button.callback('Оставить заявку', 'start_application'),
+        ])
+    );
+});
+
 bot.command('start', (ctx) => {
     ctx.reply(
         `Вас приветствует бот ${process.env.BOT_NAME}. Оставьте заявку на проектирование или консультацию, и мы свяжемся с вами в ближайшее время.`,
