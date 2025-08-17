@@ -28,8 +28,8 @@ bot.start(async (ctx) => {
     );
 });
 
-bot.command('start', (ctx) => {
-    ctx.reply(
+bot.command('start', async (ctx) => {
+    const initMsg = await ctx.reply(
         `Вас приветствует бот ${process.env.BOT_NAME}. Оставьте заявку на проектирование или консультацию, и мы свяжемся с вами в ближайшее время.`,
         // Кнопка под сообщением
         Markup.inlineKeyboard([
@@ -37,6 +37,8 @@ bot.command('start', (ctx) => {
             Markup.button.callback('Оставить заявку', 'start_application'),
         ])
     );
+    ctx.scene.session.toDeleteMsgId = initMsg.message_id;
+
 });
 
 // action - callback-запросы от кнопок

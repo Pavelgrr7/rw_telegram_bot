@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: rowelltz_tg_bot
+    # Политика перезапуска: 'unless-stopped' перезапустит контейнер, если он упадет
+    # или при перезагрузке сервера, но не если вы его остановили вручную.
+    restart: unless-stopped
+    env_file:
+      - ./.env

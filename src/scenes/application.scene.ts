@@ -68,6 +68,11 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
     async (ctx) => {
         ctx.scene.session.applicationState = {};
         ctx.scene.session.history = [];
+        try {
+            await ctx.deleteMessage(ctx.scene.session.toDeleteMsgId);
+        } catch (e) {
+            console.error(e);
+        }
         await askForProjectType(ctx);
         return ctx.wizard.next();
         },
@@ -238,8 +243,25 @@ applicationScene.action('send_final', async (ctx) => {
     // todo БД
 
     const data = ctx.scene.session.applicationState;
+
+    const user = ctx.from;
+    let userMention: string;
+
+    if (user.username) {
+        // Если есть username, используем его
+        userMention = `@${user.username}`;
+    } else {
+        // Если нет, используем имя и фамилию.
+        // А еще лучше - создаем кликабельную ссылку на профиль!
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
+        // Ссылка вида tg://user?id=123456789 откроет чат с пользователем по клику
+        userMention = `[${fullName || 'Пользователь'}](tg://user?id=${user.id})`;
+    }
+
     // @ts-ignore
     const summary = `Новая заявка.\n
+От пользователя: ${userMention}
+    
 Тип: ${data.projectType || 'Не указан'}
 Площадь: ${data.area || 'Не указана'} м²
 Местоположение: ${data.location || 'Не указано'}
