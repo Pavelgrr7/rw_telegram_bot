@@ -4,19 +4,12 @@
     "module": "commonjs",
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
     "strict": true,
     "skipLibCheck": true
-  }
+  },
+  "include": [
+    "src/**/*"
+  ]
 }
-
-//{
-//  "compilerOptions": {
-//    "module": "commonjs",
-//    "esModuleInterop": true,
-//    "target": "es6",
-//    "moduleResolution": "node",
-//    "sourceMap": true,
-//    "outDir": "dist"
-//  },
-//  "lib": ["es2015"]
-//}
