@@ -1,11 +1,27 @@
-version: '3.8'
-
 services:
   bot:
     build: .
     container_name: rowelltz_tg_bot
-    # Политика перезапуска: 'unless-stopped' перезапустит контейнер, если он упадет
-    # или при перезагрузке сервера, но не если вы его остановили вручную.
     restart: unless-stopped
     env_file:
       - ./.env
+    # бот должен стартовать ПОСЛЕ того,
+    # как запустится сервис 'redis'.
+    depends_on:
+      - redis
+
+  # сервис для Redis
+  redis:
+    # Используем официальный образ Redis с Alpine Linux (очень легкий)
+    image: redis:7-alpine
+    container_name: rw_tg_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    # Эта секция "пробрасывает" данные Redis,
+    # чтобы при перезапуске контейнера данные не терялись.
+    volumes:
+      - redis_data:/data
+
+# именованный том для хранения данных Redis
+volumes:
+  redis_data:

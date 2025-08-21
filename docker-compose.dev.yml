@@ -1,0 +1,10 @@
+services:
+  bot:
+    init: true
+    tty: true
+    command: sh -c "npm install && npm run dev"
+    volumes:
+      - .:/usr/src/app
+      - /usr/src/app/node_modules
+    ports:
+      - "9229:9229"

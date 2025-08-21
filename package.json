@@ -5,7 +5,9 @@
   "scripts": {
     "start": "node dist/bot.js",
     "build": "tsc",
-    "dev": "nodemon --watch src --ext ts --exec \"npx ts-node src/bot.ts\""
+    "dev": "ts-node-dev --respawn --transpile-only --poll --notify=false --clear src/bot.ts",
+    "docker:dev": "docker-compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "docker:prod": "docker-compose up -d --build"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +17,7 @@
     "@types/node": "^24.2.1",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2"
   },
   "dependencies": {
