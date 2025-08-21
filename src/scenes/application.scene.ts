@@ -14,7 +14,7 @@ const showConfirmation = async (ctx: RwBotContext) => {
 Бюджет: ${data.budget || 'Не указан'} руб
 Доп. Инфо: ${data.info || 'Не указано'}
 Имя: ${data.name || 'Не указано'}
-Телефон: ${data.phone || 'Не указан'}`;
+Контакты: ${data.phone || 'Не указан'}`;
 
     await ctx.reply(summary, Markup.inlineKeyboard([
         Markup.button.callback('✅ Отправить', 'send_final'),
@@ -66,15 +66,44 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
     'applicationScene',
 
     async (ctx) => {
-        ctx.scene.session.applicationState = {};
-        ctx.scene.session.history = [];
-        try {
-            await ctx.deleteMessage(ctx.scene.session.toDeleteMsgId);
-        } catch (e) {
-            console.error(e);
+        const lastStep = ctx.scene.session.lastCompletedStep;
+        console.log(`last completed step: ${lastStep}`);
+        if (typeof lastStep === 'number') {
+            await ctx.reply('Продолжаем заполнение...', Markup.keyboard([
+                ['⬅️ Назад']
+            ]).resize());
+
+            const nextStep = lastStep + 1;
+
+            // правильный вопрос для следующего шага
+            switch(nextStep) {
+                case 1: await askForProjectType(ctx); break;
+                case 2: await askForCustomProjectType(ctx); break;
+                case 3: await askForArea(ctx); break;
+                case 4: await askForLocation(ctx); break;
+                case 5: await askForBudget(ctx); break;
+                case 6: await askForInfo(ctx); break;
+                case 7: await askForName(ctx); break;
+                case 8: await askForContact(ctx); break;
+                default:
+                    await askForProjectType(ctx);
+                    return ctx.wizard.selectStep(1);
+            }
+
+            return ctx.wizard.selectStep(nextStep);
+
+        } else {
+            console.log(`last completed NaN, new app: ${lastStep}`);
+            ctx.scene.session.applicationState = {};
+            ctx.scene.session.history = [];
+            try {
+                await ctx.deleteMessage(ctx.scene.session.toDeleteMsgId);
+            } catch (e) {
+                console.error(e);
+            }
+            await askForProjectType(ctx);
+            return ctx.wizard.next();
         }
-        await askForProjectType(ctx);
-        return ctx.wizard.next();
         },
 
     async (ctx) => {
@@ -86,6 +115,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
         const projectType = ctx.callbackQuery.data;
 
         ctx.scene.session.history.push(0);
+        ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
         if (projectType === 'type_other') {
             await askForCustomProjectType(ctx);
@@ -114,6 +144,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
         if (ctx.message && 'text' in ctx.message) {
 
             ctx.scene.session.applicationState.projectType = `Другое: ${ctx.message.text}`;
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -136,6 +167,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
             }
             ctx.scene.session.applicationState.area = area;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -153,6 +185,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
 
             ctx.scene.session.applicationState.location = ctx.message.text;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -175,6 +208,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
             }
             ctx.scene.session.applicationState.budget = budget;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -191,6 +225,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
         if (ctx.message && 'text' in ctx.message) {
             ctx.scene.session.applicationState.info = ctx.message.text;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -208,6 +243,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
 
             ctx.scene.session.applicationState.name = ctx.message.text;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             if (ctx.scene.session.isEditing) {
                 delete ctx.scene.session.isEditing;
@@ -229,6 +265,7 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
             // TODO: Добавить валидацию телефона
             ctx.scene.session.applicationState.phone = ctx.message.text;
             ctx.scene.session.history.push(ctx.wizard.cursor);
+            ctx.scene.session.lastCompletedStep = ctx.wizard.cursor;
 
             await showConfirmation(ctx);
             // await ctx.reply('...', Markup.removeKeyboard());
@@ -239,9 +276,11 @@ export const applicationScene = new Scenes.WizardScene<RwBotContext>(
 applicationScene.action('send_final', async (ctx) => {
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(undefined); // Убираем кнопки
-    await ctx.reply('Спасибо! Мы свяжемся с вами в ближайшее время.', Markup.removeKeyboard());
-    // todo БД
-
+    await ctx.reply('Спасибо! Мы свяжемся с вами в ближайшее время.',
+        Markup.inlineKeyboard([
+            [Markup.button.callback('Новая заявка', 'another_application')]
+        ])
+    );
     const data = ctx.scene.session.applicationState;
 
     const user = ctx.from;
@@ -270,12 +309,28 @@ applicationScene.action('send_final', async (ctx) => {
 Имя: ${data.name || 'Не указано'}
 Контакт: ${data.phone || 'Не указан'}`;
 
-    // @ts-ignore
-    ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID.toString(), summary);
+    try {
+        // @ts-ignore
+        ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID.toString(), summary);
+        // @ts-ignore
+        ctx.telegram.sendMessage(process.env.ADMIN_SCND_CHAT_ID.toString(), summary);
+    } catch (e) {
+        try {
+            // @ts-ignore
+            ctx.telegram.sendMessage(process.env.ADMIN_THRD_CHAT_ID.toString(), summary);
+        } catch (e) {
+            console.error(e);
+        }
+        console.error(e);
+    }
     console.log(ctx.scene.session.applicationState);
+
+    ctx.scene.session.applicationState = {};
+    ctx.scene.session.history = [];
+    delete ctx.scene.session.lastCompletedStep;
+
     return ctx.scene.leave();
 });
-
 
 // "Изменить"
 applicationScene.action('edit_final', async (ctx) => {
@@ -302,92 +357,6 @@ const createEditHandler = (replyText: string, stepIndex: number) => async (ctx: 
     await ctx.reply(replyText);
     return ctx.wizard.selectStep(stepIndex);
 };
-//todo fix strange behaviour
-//
-// applicationScene.hears('⬅️ Назад', async (ctx) => {
-//
-//     if (!ctx.scene.session.history || ctx.scene.session.history.length === 0) {
-//         await ctx.reply('Вы в самом начале, возвращаться некуда.');
-//         return;
-//     }
-//
-//     const currentStepIndex = ctx.wizard.cursor;
-//
-//     switch(currentStepIndex) {
-//         case 4: // Уходим с шага "Локация"
-//             delete ctx.scene.session.applicationState.location;
-//             break;
-//         case 5: // Уходим с шага "Бюджет"
-//             delete ctx.scene.session.applicationState.budget;
-//             break;
-//         case 6:
-//             delete ctx.scene.session.applicationState.info;
-//             break;
-//         case 7:
-//             delete ctx.scene.session.applicationState.name;
-//             break;
-//         case 8: // Шаг телефона
-//             delete ctx.scene.session.applicationState.phone;
-//             break;
-//
-//     }
-//
-//     // Достаем из стека индекс предыдущего шага
-//     const previousStepIndex = ctx.scene.session.history.pop()!;
-//     await ctx.reply('Хорошо, вернемся на шаг назад.');
-//
-//     // Перемещаем курсор
-//     ctx.wizard.selectStep(previousStepIndex);
-//
-//     switch(previousStepIndex) {
-//         case 0:
-//             delete ctx.scene.session.applicationState.projectType;
-//             break;
-//         case 2:
-//             delete ctx.scene.session.applicationState.projectType;
-//             break;
-//         case 3:
-//             delete ctx.scene.session.applicationState.area;
-//             break;
-//         case 4:
-//             delete ctx.scene.session.applicationState.location;
-//             break;
-//         case 5:
-//             delete ctx.scene.session.applicationState.budget;
-//             break;
-//         case 6:
-//             delete ctx.scene.session.applicationState.info;
-//             break;
-//         case 7:
-//             delete ctx.scene.session.applicationState.name;
-//             break;
-//     }
-//
-//     switch(previousStepIndex) {
-//         case 0:
-//             await askForProjectType(ctx);
-//             break;
-//         case 2:
-//             await askForCustomProjectType(ctx);
-//             break;
-//         case 3:
-//             await askForArea(ctx);
-//             break;
-//         case 4:
-//             await askForLocation(ctx);
-//             break;
-//         case 5:
-//             await askForBudget(ctx);
-//             break;
-//         case 6:
-//             await askForInfo(ctx);
-//             break;
-//         case 7:
-//             await askForName(ctx);
-//             break;
-//     }
-//
-// });
 
 applicationScene.action('edit_projectType', createEditHandler('Выберите тип проекта:', 0));
 applicationScene.action('edit_area', createEditHandler('Введите площадь помещения/участка (в м²):', 3));
@@ -395,4 +364,4 @@ applicationScene.action('edit_location', createEditHandler('Укажите ме�
 applicationScene.action('edit_budget', createEditHandler('Укажите бюджет (в руб.):', 5));
 applicationScene.action('edit_info', createEditHandler('Укажите дополнительную информацию:', 6));
 applicationScene.action('edit_name', createEditHandler('Укажите ваше имя:', 7));
-applicationScene.action('edit_phone', createEditHandler('Укажите ваш номер телефона:', 8));
+applicationScene.action('edit_phone', createEditHandler('Укажите удобный вам способ связи:', 8));

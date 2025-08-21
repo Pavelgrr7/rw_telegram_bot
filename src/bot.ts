@@ -2,19 +2,32 @@
 import 'dotenv/config';
 import { Telegraf, session, Scenes, Markup, Context } from 'telegraf';
 import { applicationScene } from './scenes/application.scene';
-import {RwBotContext} from "./scenes/context.interfaces";
-
+import {ApplicationWizardSession, RwBotContext} from "./scenes/context.interfaces";
+import { Redis } from "@telegraf/session/redis";
+import {createClient} from "redis";
 const token = process.env.BOT_TOKEN;
 if (!token) {
     throw new Error('BOT_TOKEN must be provided in .env file!');
 }
+type Session = Scenes.SceneSession<ApplicationWizardSession>;
+const redisUrl = `redis://${process.env.REDIS_HOST || '127.0.0.1'}:6379`;
 
-const bot = new Telegraf<RwBotContext>(token);
-//todo redis
-bot.use(session());
-
-const stage = new Scenes.Stage<RwBotContext>([applicationScene], {
+const redisClient = createClient({
+    url: redisUrl,
 });
+
+// redisClient.connect().catch(console.error);
+
+const store = Redis<Session>({
+    client: redisClient,
+});
+
+const bot = new Telegraf<RwBotContext>(process.env.BOT_TOKEN!);
+
+bot.use(session({ store }));
+
+
+const stage = new Scenes.Stage<RwBotContext>([applicationScene], {});
 bot.use(stage.middleware());
 
 bot.start(async (ctx) => {
@@ -44,14 +57,40 @@ bot.command('start', async (ctx) => {
 // action - callback-запросы от кнопок
 bot.action('start_application', async (ctx) => {
     await ctx.answerCbQuery();
+    const existingState = ctx.session?.__scenes?.applicationState;
+    if (existingState && Object.keys(existingState).length > 0) {
+        await ctx.reply(
+            'У вас есть незавершенная заявка. Хотите продолжить ее заполнение?',
+            Markup.inlineKeyboard([
+                Markup.button.callback('Продолжить', 'continue_application'),
+                Markup.button.callback('Начать новую', 'another_application'),
+            ])
+        );
+    } else {
+        return ctx.scene.enter('applicationScene');
+    }
+});
+
+bot.action('another_application', async (ctx) => {
+    await ctx.answerCbQuery();
+    try {
+        await ctx.deleteMessage();
+    } catch (e) { console.warn("Couldn't delete message, maybe it was already deleted."); }
+
+    ctx.session.__scenes = {};
+
+    // Используем enter, а не reenter, потому что мы входим в сцену "с нуля".
     await ctx.scene.enter('applicationScene');
 });
 
-bot.command('cancel', async (ctx) => {
-    await ctx.reply('Действие отменено.');
-    // Выход из текущей сцены
-    return ctx.scene.leave();
+bot.action('continue_application', async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+
+    await ctx.scene.enter('applicationScene', ctx.session.__scenes?.applicationState);
+
 });
+
 
 bot.launch();
 
