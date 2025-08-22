@@ -17,10 +17,13 @@ services:
     container_name: rw_tg_redis
     restart: unless-stopped
     command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"
     # Эта секция "пробрасывает" данные Redis,
     # чтобы при перезапуске контейнера данные не терялись.
     volumes:
       - redis_data:/data
+
 
 # именованный том для хранения данных Redis
 volumes:
