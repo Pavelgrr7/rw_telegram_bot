@@ -2,58 +2,132 @@
 import 'dotenv/config';
 import { Telegraf, session, Scenes, Markup, Context } from 'telegraf';
 import { applicationScene } from './scenes/application.scene';
-import {RwBotContext} from "./scenes/context.interfaces";
+import {ApplicationWizardSession, RwBotContext} from "./scenes/context.interfaces";
+import { Redis } from "@telegraf/session/redis";
+import {createClient} from "redis";
+import { RedisService } from './services/redis.service';
+import {ACTION_NAMES} from "./constants";
+import startApplicationHandler from "./handlers/start.app.handler";
 
 const token = process.env.BOT_TOKEN;
 if (!token) {
     throw new Error('BOT_TOKEN must be provided in .env file!');
 }
+type Session = Scenes.SceneSession<ApplicationWizardSession>;
+const redisUrl = `redis://${process.env.REDIS_HOST || '127.0.0.1'}:6379`;
 
-const bot = new Telegraf<RwBotContext>(token);
-//todo redis
-bot.use(session());
-
-const stage = new Scenes.Stage<RwBotContext>([applicationScene], {
+const redisClient = createClient({
+    url: redisUrl,
 });
+
+export const redisService = new RedisService(redisClient as any);
+
+const store = Redis<Session>({
+    client: redisClient,
+});
+
+const bot = new Telegraf<RwBotContext>(process.env.BOT_TOKEN!);
+
+bot.use(session({ store }));
+
+
+const stage = new Scenes.Stage<RwBotContext>([applicationScene], {});
 bot.use(stage.middleware());
-
-bot.start(async (ctx) => {
-    await ctx.reply(
-        `Вас приветствует бот ${process.env.BOT_NAME}. Оставьте заявку на проектирование или консультацию, и мы свяжемся с вами в ближайшее время.`,
-        // Кнопка под сообщением
-        Markup.inlineKeyboard([
-            // Кнопка с callback-запросом
-            Markup.button.callback('Оставить заявку', 'start_application'),
-        ])
-    );
-});
 
 bot.command('start', async (ctx) => {
     const initMsg = await ctx.reply(
-        `Вас приветствует бот ${process.env.BOT_NAME}. Оставьте заявку на проектирование или консультацию, и мы свяжемся с вами в ближайшее время.`,
-        // Кнопка под сообщением
+        `Вас приветствует бот ${process.env.BOT_NAME}. ...`,
         Markup.inlineKeyboard([
-            // Кнопка с callback-запросом
-            Markup.button.callback('Оставить заявку', 'start_application'),
+            Markup.button.callback('Оставить заявку', ACTION_NAMES.START_APPLICATION),
         ])
     );
     ctx.scene.session.toDeleteMsgId = initMsg.message_id;
-
+});
+bot.action(ACTION_NAMES.START_APPLICATION, async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+    await startApplicationHandler(ctx);
 });
 
-// action - callback-запросы от кнопок
-bot.action('start_application', async (ctx) => {
+bot.action('another_application', async (ctx) => {
     await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+    await startApplicationHandler(ctx);
+});
+
+bot.hears('Новая заявка', async (ctx) => {
+    await startApplicationHandler(ctx);
+});
+
+bot.action(ACTION_NAMES.ANOTHER_APPLICATION, async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+
+    // @ts-ignore
+    ctx.session.__scenes = {};
+
     await ctx.scene.enter('applicationScene');
 });
 
-bot.command('cancel', async (ctx) => {
-    await ctx.reply('Действие отменено.');
-    // Выход из текущей сцены
-    return ctx.scene.leave();
+bot.action(ACTION_NAMES.CONTINUE_APPLICATION, async (ctx) => {
+    await ctx.answerCbQuery();
+    await ctx.deleteMessage();
+
+    await ctx.scene.enter('applicationScene');
 });
 
+
+// фоновый воркер для отправки тех заявок, которые по какой-либо причине не смогли отправиться сразу
+const RETRY_INTERVAL_MS = 10 * 60 * 1000; // Проверять каждые 10 минут
+
+const startRetryWorker = () => {
+    console.log(`Starting retry worker. Interval: ${RETRY_INTERVAL_MS / 1000}s`);
+
+    setInterval(async () => {
+        console.log('Worker: Checking for failed applications...');
+
+        let application = await redisService.getOldestFailedApplication();
+
+        // Обрабатываем все заявки, которые есть в очереди на данный момент
+        while (application) {
+            console.log('Worker: Found a failed application. Retrying to send...');
+            const summary = `Новая заявка.\n
+От пользователя: ${application.user}
+    
+Тип: ${application.projectType || 'Не указан'}
+Площадь: ${application.area || 'Не указана'} м²
+Местоположение: ${application.location || 'Не указано'}
+Бюджет: ${application.budget || 'Не указан'} руб
+Доп. Инфо: ${application.info || 'Не указано'}
+Имя: ${application.name || 'Не указано'}
+Контакт: ${application.phone || 'Не указан'}`;
+
+            try {
+                // Пытаемся отправить снова
+                // @ts-ignore
+                await bot.telegram.sendMessage(process.env.ADMIN_CHAT_ID, summary);
+                // @ts-ignore
+                await bot.telegram.sendMessage(process.env.ADMIN_SCND_CHAT_ID, summary);
+                console.log('Worker: Successfully resent application.');
+            } catch (error) {
+                // @ts-ignore
+                console.error('Worker: Retry failed. Returning application to queue.', error.message);
+                await redisService.addFailedApplicationToQueue(application);
+                break;
+            }
+
+            application = await redisService.getOldestFailedApplication();
+        }
+
+    }, RETRY_INTERVAL_MS);
+};
+
+
+
+
 bot.launch();
+startRetryWorker();
+
 
 console.log('Bot started...');
 

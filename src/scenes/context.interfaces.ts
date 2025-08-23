@@ -18,11 +18,10 @@ export interface ApplicationWizardSession extends Scenes.WizardSessionData {
     isEditing?: boolean;
     history: number[];
     toDeleteMsgId?: number;
+    lastCompletedStep?: number;
     // lastUserMessageId?: number;
 
 }
 
-export interface RwBotContext extends Context {
-    scene: Scenes.SceneContextScene<RwBotContext, ApplicationWizardSession>;
-    wizard: Scenes.WizardContextWizard<RwBotContext>;
+export interface RwBotContext extends Scenes.WizardContext<ApplicationWizardSession> {
 }
