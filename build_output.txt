@@ -1,0 +1,5 @@
+
+> rowelltz_tg_bot@1.0.0 build
+> tsc
+
+sh: 1: tsc: Permission denied
