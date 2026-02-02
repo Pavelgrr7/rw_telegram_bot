@@ -1,8 +1,6 @@
 import { Telegraf } from "telegraf";
 import { RwBotContext } from "../../scenes/context.interfaces";
-
-
-
+import { INotificationTransport } from '../inotification.transport';
 // Реализация для тг-бота
 export class TelegramTransport implements INotificationTransport {
     constructor(private bot: Telegraf<RwBotContext>, private adminIds: string[]) {}
@@ -11,7 +9,7 @@ export class TelegramTransport implements INotificationTransport {
         let success = true;
 
         try {
-            await Promise.all(adminIds.map(id => 
+            await Promise.all(this.adminIds.map(id => 
                 this.bot.telegram.sendMessage(id!, message, { parse_mode: 'Markdown' })
             ));
             
