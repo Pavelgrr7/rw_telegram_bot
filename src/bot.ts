@@ -7,15 +7,27 @@ import { Redis } from "@telegraf/session/redis";
 import {createClient} from "redis";
 import { RedisService } from './services/redis.service';
 import {ACTION_NAMES} from "./constants";
+import { startWebServer } from './web.application.handler';
 import startApplicationHandler from "./handlers/start.app.handler";
+import { NotificationService } from './services/notification.service';
+import { TelegramTransport } from './transport/impl/tg.bot.transport';
 
 const token = process.env.BOT_TOKEN;
+
+// Список, если понадобится добавить ещё аккаунты
+// Используется в TelegramTransport для отправки сообщений о новых заявках в telegram
+const adminIds: string[] = [
+    process.env.ADMIN_CHAT_ID,
+    process.env.ADMIN_SCND_CHAT_ID,
+    ].filter((id): id is string => !!id);
+
 if (!token) {
     throw new Error('BOT_TOKEN must be provided in .env file!');
 }
-type Session = Scenes.SceneSession<ApplicationWizardSession>;
-const redisUrl = `redis://${process.env.REDIS_HOST || '127.0.0.1'}:6379`;
 
+type Session = Scenes.SceneSession<ApplicationWizardSession>;
+
+const redisUrl = `redis://${process.env.REDIS_HOST || '127.0.0.1'}:6379`;
 const redisClient = createClient({
     url: redisUrl,
 });
@@ -29,7 +41,6 @@ const store = Redis<Session>({
 const bot = new Telegraf<RwBotContext>(process.env.BOT_TOKEN!);
 
 bot.use(session({ store }));
-
 
 const stage = new Scenes.Stage<RwBotContext>([applicationScene], {});
 bot.use(stage.middleware());
@@ -76,7 +87,6 @@ bot.action(ACTION_NAMES.CONTINUE_APPLICATION, async (ctx) => {
     await ctx.scene.enter('applicationScene');
 });
 
-
 // фоновый воркер для отправки тех заявок, которые по какой-либо причине не смогли отправиться сразу
 const RETRY_INTERVAL_MS = 10 * 60 * 1000; // Проверять каждые 10 минут
 
@@ -122,12 +132,21 @@ const startRetryWorker = () => {
     }, RETRY_INTERVAL_MS);
 };
 
-
-
-
 bot.launch();
+
+// Инициализация NotificationService
+// Ему необходимо передать экземпляр класса-наследника от itransport, 
+// интерфейса из ./src/transport/inotification.transport.ts.
+// В пакете impl можно добавлять различные реализации этого интерфейса и таким образом переключаться
+// между разными способами доставки сообщений о заявке
+
+const transport = new TelegramTransport(bot, adminIds);
+export const notificationService = new NotificationService(transport, redisService);
+
 startRetryWorker();
 
+// Сервер слушает порт 3000 и бросает заявки в NotificationService
+startWebServer(); 
 
 console.log('Bot started...');
 
