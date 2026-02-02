@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { RwBotContext, ApplicationData } from '../scenes/context.interfaces';
 import { RedisService } from './redis.service';
+import { INotificationTransport } from '../transport/inotification.transport';
 
 export class NotificationService {
     constructor(
