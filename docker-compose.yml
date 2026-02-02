@@ -9,10 +9,12 @@ services:
     # как запустится сервис 'redis'.
     depends_on:
       - redis
+    ports:
+      # Внешний порт 3000 на localhost хоста ведёт к порту 3000 контейнера
+      - "127.0.0.1:3000:3000"
 
   # сервис для Redis
   redis:
-    # Используем официальный образ Redis с Alpine Linux (очень легкий)
     image: redis:7-alpine
     container_name: rw_tg_redis
     restart: unless-stopped
