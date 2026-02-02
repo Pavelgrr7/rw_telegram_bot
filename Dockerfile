@@ -1,4 +1,4 @@
-FROM node:18-alpine
+FROM node:18-alpine AS builder
 
 WORKDIR /usr/src/app
 
@@ -20,4 +20,6 @@ RUN npm ci --only=production
 
 COPY --from=builder /usr/src/app/dist ./dist
 
-CMD [ "node", "dist/bot.js" ]
+EXPOSE 3000
+
+CMD ["node", "dist/bot.js"]

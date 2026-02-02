@@ -40,5 +40,18 @@ export class RedisService {
             return null;
         }
     }
+
+
+    public async addApplicationToQueue(applicationData: ApplicationData): Promise<void> {
+        try {
+            // Превращаем объект заявки в строку JSON для хранения в Redis
+            const applicationJson = JSON.stringify(applicationData);
+
+            await this.redisClient.lPush(FAILED_APPLICATIONS_QUEUE, applicationJson);
+            console.log('Application added to the retry queue.');
+        } catch (error) {
+            console.error('Failed to add application to Redis queue:', error);
+        }
+    }
 }
 export default RedisService;

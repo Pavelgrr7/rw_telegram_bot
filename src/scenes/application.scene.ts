@@ -10,6 +10,8 @@ import {
     createEditHandler,
     backToLastCompletedStepHandler
 } from "../handlers/application.scene.handlers";
+import { notificationService } from '../bot';
+
 import {ACTION_MESSAGES, ACTION_NAMES} from "../constants";
 
 const showConfirmation = async (ctx: RwBotContext) => {
@@ -336,28 +338,11 @@ applicationScene.action(ACTION_NAMES.SEND_FINAL, async (ctx) => {
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ');
         userMention = `[${fullName || 'Пользователь'}](tg://user?id=${user.id})`;
     }
-
-    // @ts-ignore
-    const summary = `Новая заявка.\n
-От пользователя: ${userMention}
-    
-Тип: ${data.projectType || 'Не указан'}
-Площадь: ${data.area || 'Не указана'} м²
-Местоположение: ${data.location || 'Не указано'}
-Бюджет: ${data.budget || 'Не указан'} руб
-Доп. Инфо: ${data.info || 'Не указано'}
-Имя: ${data.name || 'Не указано'}
-Контакт: ${data.phone || 'Не указан'}`;
     try {
-        // @ts-ignore
-        await ctx.telegram.sendMessage(process.env.ADMIN_CHAT_ID, summary, { parse_mode: 'Markdown' });
-        // @ts-ignore
-        await ctx.telegram.sendMessage(process.env.ADMIN_SCND_CHAT_ID.toString(), summary);
-        console.log('Application sent successfully to admin.');
-
+        await notificationService.sendApplication(data, userMention);
     } catch (error) {
         // @ts-ignore
-        console.error('FAILED TO SEND APPLICATION TO ADMIN:', error.message);
+        console.error('FAILED TO PROCEED APPLICATION TO NOTIFICATION SERVICE, MANUALLY ADDED TO REDIS:', error.message);
         await redisService.addFailedApplicationToQueue(data);
     }
 
